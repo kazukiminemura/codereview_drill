@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AI生成コードを自分でレビューし、発生条件・影響・修正案・テストで判断力を鍛える演習環境"
+    />
+    <title>Review Gym | Code Review Drill</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Review Gym ホーム">
+        <span class="brand-mark" aria-hidden="true">R</span>
+        <span>Review Gym</span>
+        <span class="brand-subtitle">AI CODE REVIEW TRAINING</span>
+      </a>
+      <div class="topbar-progress">
+        <span id="progress-label">0 / 100 完了</span>
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="progress-bar"></span>
+        </div>
+      </div>
+      <button id="reset-button" class="ghost-button" type="button">進捗をリセット</button>
+    </header>
+
+    <main class="workbench" aria-label="コードレビュー演習">
+      <aside class="sidebar panel">
+        <div class="sidebar-heading">
+          <div>
+            <span class="eyebrow">TRAINING PATH</span>
+            <h1>Code Review 101</h1>
+          </div>
+          <button id="sidebar-toggle" class="icon-button" type="button" aria-label="問題一覧を閉じる">×</button>
+        </div>
+        <nav id="question-navigation" aria-label="問題一覧"></nav>
+      </aside>
+
+      <section class="editor-panel panel">
+        <div class="panel-toolbar">
+          <button id="open-sidebar" class="icon-button mobile-only" type="button" aria-label="問題一覧を開く">☰</button>
+          <div class="breadcrumbs">
+            <span id="chapter-label">第1章</span>
+            <span aria-hidden="true">/</span>
+            <strong id="question-label">問001</strong>
+          </div>
+          <div class="editor-actions">
+            <button id="previous-button" class="icon-button" type="button" aria-label="前の問題">←</button>
+            <button id="next-button" class="icon-button" type="button" aria-label="次の問題">→</button>
+          </div>
+        </div>
+
+        <div class="challenge-header">
+          <div>
+            <span class="eyebrow">TODAY'S REVIEW</span>
+            <h2 id="challenge-title">問題を読み込んでいます</h2>
+          </div>
+          <span id="difficulty-badge" class="difficulty-badge">FOUNDATION</span>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="問題情報">
+          <button class="tab is-active" type="button" role="tab" data-tab="spec" aria-selected="true">仕様</button>
+          <button class="tab" type="button" role="tab" data-tab="code" aria-selected="false">変更コード</button>
+          <button class="tab" type="button" role="tab" data-tab="test" aria-selected="false">テスト案</button>
+        </div>
+
+        <div id="spec-view" class="tab-view is-active" role="tabpanel">
+          <p id="question-prompt" class="question-prompt"></p>
+          <div class="review-hint">
+            <span class="review-hint-icon" aria-hidden="true">?</span>
+            <p><strong>レビューの焦点</strong><br />コード上の事実と、問題が起きる具体的な条件を分けて考えてください。</p>
+          </div>
+        </div>
+
+        <div id="code-view" class="tab-view" role="tabpanel">
+          <div class="code-header">
+            <span>review_target.py</span>
+            <button id="copy-code" class="text-button" type="button">コードをコピー</button>
+          </div>
+          <pre class="code-editor" aria-label="レビュー対象コード"><code id="code-content"></code></pre>
+        </div>
+
+        <div id="test-view" class="tab-view" role="tabpanel">
+          <label for="test-evidence">問題を再現する入力・状態・期待結果</label>
+          <textarea id="test-evidence" rows="10" placeholder="Given: 境界値の入力がある\nWhen: 対象関数を実行する\nThen: 期待結果と実際結果が異なる"></textarea>
+          <p class="field-help">実行コードでなくても構いません。再現条件が第三者に伝わることを優先します。</p>
+        </div>
+
+        <div id="load-error" class="load-error" hidden>
+          教材を読み込めませんでした。リポジトリのルートで <code>python -m http.server</code> を実行し、
+          <code>/web/</code> を開いてください。
+        </div>
+      </section>
+
+      <aside class="review-panel panel">
+        <div class="review-heading">
+          <div>
+            <span class="eyebrow">YOUR REVIEW</span>
+            <h2>レビュー判断</h2>
+          </div>
+          <span id="save-status" class="save-status">自動保存</span>
+        </div>
+
+        <form id="review-form">
+          <fieldset>
+            <legend>判定</legend>
+            <div class="segmented-control verdict-control">
+              <label><input type="radio" name="verdict" value="Approve" /><span>Approve</span></label>
+              <label><input type="radio" name="verdict" value="Comment" /><span>Comment</span></label>
+              <label><input type="radio" name="verdict" value="Request changes" /><span>Request changes</span></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>重大度</legend>
+            <div class="segmented-control severity-control">
+              <label><input type="radio" name="severity" value="Low" /><span>Low</span></label>
+              <label><input type="radio" name="severity" value="Medium" /><span>Medium</span></label>
+              <label><input type="radio" name="severity" value="High" /><span>High</span></label>
+              <label><input type="radio" name="severity" value="Critical" /><span>Critical</span></label>
+            </div>
+          </fieldset>
+
+          <label for="fact">コード上の事実 <span class="required">必須</span></label>
+          <textarea id="fact" rows="3" placeholder="どのコードが、何をしているか"></textarea>
+
+          <label for="condition">発生条件</label>
+          <textarea id="condition" rows="2" placeholder="どの入力・状態・タイミングで起きるか"></textarea>
+
+          <label for="impact">想定される影響</label>
+          <textarea id="impact" rows="2" placeholder="利用者・データ・運用に何が起きるか"></textarea>
+
+          <label for="proposal">修正・確認の提案</label>
+          <textarea id="proposal" rows="2" placeholder="実行可能な修正、テスト、仕様確認"></textarea>
+
+          <button id="prove-button" class="secondary-button" type="button">テスト案を書く</button>
+          <button id="submit-review" class="primary-button" type="submit">レビューを提出して答え合わせ</button>
+          <p id="form-message" class="form-message" role="status"></p>
+        </form>
+
+        <section id="answer-panel" class="answer-panel" hidden aria-live="polite">
+          <div class="answer-heading">
+            <span class="eyebrow">REFERENCE REVIEW</span>
+            <button id="close-answer" class="icon-button" type="button" aria-label="回答例を閉じる">×</button>
+          </div>
+          <div id="answer-content"></div>
+          <fieldset class="self-score">
+            <legend>自分のレビューに含まれていたもの</legend>
+            <label><input type="checkbox" value="fact" /> コード上の事実</label>
+            <label><input type="checkbox" value="condition" /> 発生条件</label>
+            <label><input type="checkbox" value="impact" /> 影響</label>
+            <label><input type="checkbox" value="proposal" /> 修正・テスト・仕様確認</label>
+          </fieldset>
+          <button id="complete-button" class="primary-button" type="button">採点して完了</button>
+        </section>
+      </aside>
+    </main>
+
+    <template id="chapter-template">
+      <section class="chapter-group">
+        <button class="chapter-toggle" type="button" aria-expanded="true">
+          <span class="chapter-name"></span>
+          <span class="chapter-count"></span>
+        </button>
+        <div class="question-list"></div>
+      </section>
+    </template>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>
