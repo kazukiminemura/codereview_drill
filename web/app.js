@@ -7,6 +7,7 @@ const STORAGE_KEY = "code-review-gym-progress-v1";
 const state = {
   questions: [],
   answers: new Map(),
+  examples: new Map(),
   activeIndex: 0,
   progress: loadProgress(),
 };
@@ -19,6 +20,7 @@ const elements = {
   challengeTitle: document.querySelector("#challenge-title"),
   questionPrompt: document.querySelector("#question-prompt"),
   codeContent: document.querySelector("#code-content"),
+  chapterExamples: document.querySelector("#chapter-examples"),
   progressLabel: document.querySelector("#progress-label"),
   progressBar: document.querySelector("#progress-bar"),
   progressTrack: document.querySelector(".progress-track"),
@@ -132,6 +134,30 @@ function parseAnswers(markdown) {
   return answers;
 }
 
+function parseChapterExamples(markdown) {
+  const examples = new Map();
+  const chapterChunks = markdown.split(/^## (第\d+章：.+)$/m);
+
+  for (let index = 1; index < chapterChunks.length; index += 2) {
+    const chapter = chapterChunks[index];
+    const chapterBody = chapterChunks[index + 1] || "";
+    const section = chapterBody.match(/### 解説付き例題\s*\n([\s\S]*?)(?=\n### 練習問題)/);
+    if (!section) continue;
+
+    const chunks = section[1].split(/^#### (例題\d+：.+)$/m);
+    const chapterExamples = [];
+    for (let chunkIndex = 1; chunkIndex < chunks.length; chunkIndex += 2) {
+      chapterExamples.push({
+        title: chunks[chunkIndex],
+        body: (chunks[chunkIndex + 1] || "").trim(),
+      });
+    }
+    examples.set(chapter, chapterExamples);
+  }
+
+  return examples;
+}
+
 function makeTitle(prompt, code) {
   const source = prompt || code || "コードをレビューしてください";
   const firstLine = source.split("\n").find(Boolean) || source;
@@ -150,6 +176,48 @@ function highlightCode(code) {
 function answerToHtml(markdown) {
   const lines = markdown.split("\n").filter(Boolean);
   return `<h3>模範レビュー</h3>${lines.map((line) => `<p>${inlineMarkdown(line)}</p>`).join("")}`;
+}
+
+function exampleBodyToHtml(markdown) {
+  const lines = markdown.split("\n");
+  const parts = [];
+  let inFence = false;
+  let code = [];
+
+  const flushCode = () => {
+    if (!code.length) return;
+    parts.push(`<pre class="example-code"><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+    code = [];
+  };
+
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      if (inFence) flushCode();
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) {
+      code.push(line);
+      continue;
+    }
+    if (line.trim()) parts.push(`<p>${inlineMarkdown(line)}</p>`);
+  }
+  flushCode();
+  return parts.join("");
+}
+
+function renderChapterExamples(chapter) {
+  const examples = state.examples.get(chapter) || [];
+  if (!examples.length) {
+    elements.chapterExamples.innerHTML = "<p>この章の解説例を読み込めませんでした。</p>";
+    return;
+  }
+  elements.chapterExamples.innerHTML = examples.map((example) => `
+    <article class="example-card">
+      <h4>${escapeHtml(example.title)}</h4>
+      ${exampleBodyToHtml(example.body)}
+    </article>
+  `).join("");
 }
 
 function groupQuestions() {
@@ -234,6 +302,7 @@ function selectQuestion(index) {
   elements.challengeTitle.textContent = question.title;
   elements.questionPrompt.textContent = question.prompt || "提示されたコードや状況をレビューしてください。";
   elements.codeContent.innerHTML = highlightCode(question.code);
+  renderChapterExamples(question.chapter);
   elements.difficultyBadge.textContent = question.number <= 30 ? "FOUNDATION" : question.number <= 70 ? "PRACTICE" : "JUDGMENT";
   writeForm(draftFor(question.id));
   elements.formMessage.textContent = "";
@@ -338,8 +407,10 @@ async function start() {
   try {
     const [sourceResponse, answerResponse] = await Promise.all([fetch(SOURCE_PATH), fetch(ANSWER_PATH)]);
     if (!sourceResponse.ok || !answerResponse.ok) throw new Error("教材ファイルの取得に失敗しました");
-    state.questions = parseQuestions(await sourceResponse.text());
-    state.answers = parseAnswers(await answerResponse.text());
+    const [sourceMarkdown, answerMarkdown] = await Promise.all([sourceResponse.text(), answerResponse.text()]);
+    state.questions = parseQuestions(sourceMarkdown);
+    state.examples = parseChapterExamples(sourceMarkdown);
+    state.answers = parseAnswers(answerMarkdown);
     if (!state.questions.length) throw new Error("問題を解析できませんでした");
     updateProgress();
     selectQuestion(0);

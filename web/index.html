@@ -63,6 +63,7 @@
         <div class="tabs" role="tablist" aria-label="問題情報">
           <button class="tab is-active" type="button" role="tab" data-tab="spec" aria-selected="true">仕様</button>
           <button class="tab" type="button" role="tab" data-tab="code" aria-selected="false">変更コード</button>
+          <button class="tab" type="button" role="tab" data-tab="example" aria-selected="false">解説例</button>
           <button class="tab" type="button" role="tab" data-tab="test" aria-selected="false">テスト案</button>
         </div>
 
@@ -80,6 +81,15 @@
             <button id="copy-code" class="text-button" type="button">コードをコピー</button>
           </div>
           <pre class="code-editor" aria-label="レビュー対象コード"><code id="code-content"></code></pre>
+        </div>
+
+        <div id="example-view" class="tab-view" role="tabpanel">
+          <div class="example-intro">
+            <span class="eyebrow">WORKED EXAMPLES</span>
+            <h3>この章の解説付き例題</h3>
+            <p>着眼点を確認し、コード上の事実からレビューコメントを組み立てる流れをつかんでください。</p>
+          </div>
+          <div id="chapter-examples" class="chapter-examples"></div>
         </div>
 
         <div id="test-view" class="tab-view" role="tabpanel">
